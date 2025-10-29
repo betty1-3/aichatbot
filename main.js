@@ -192,71 +192,67 @@ micButton.addEventListener('click', () => {
   }
 });
 
-function handleUserResponse(response) {
+async function handleUserResponse(response) {
   addUserMessage(response);
   messageInput.value = '';
+
+  let isValid = true; // 🧠 assume valid unless proven otherwise
 
   switch (questionIndex) {
     case 0:
       const locationData = extractLocationData(response);
-      collectedData.district = locationData.district;
-      collectedData.state = locationData.state;
-      console.log('Extracted location:', locationData);
+      if (!locationData.district || !locationData.state) {
+        addBotMessage("I couldn’t catch your district and state. Could you please mention both clearly?");
+        speakMessage("Please say or type your district and state again.", currentLanguage.lang);
+        isValid = false;
+      } else {
+        collectedData.district = locationData.district;
+        collectedData.state = locationData.state;
+        console.log('Extracted location:', locationData);
+      }
       break;
+
     case 1:
-      collectedData.farm_size_acres = extractFarmSize(response);
-      console.log('Extracted farm size:', collectedData.farm_size_acres);
+      const farmSize = extractFarmSize(response);
+      if (!farmSize || isNaN(farmSize) || farmSize <= 0) {
+        addBotMessage("Hmm, that doesn’t seem like a valid number of acres. Could you please repeat it?");
+        speakMessage("Please say or type your farm size in acres again.", currentLanguage.lang);
+        isValid = false;
+      } else {
+        collectedData.farm_size_acres = farmSize;
+        console.log('Extracted farm size:', farmSize);
+      }
       break;
+
     case 2:
-      collectedData.crop_type = extractCropType(response);
-      console.log('Extracted crop type:', collectedData.crop_type);
+      const cropType = extractCropType(response);
+      if (!cropType || cropType.length < 2) {
+        addBotMessage("I didn’t recognize that crop type. Could you please name your crop again?");
+        speakMessage("Please say your crop type again.", currentLanguage.lang);
+        isValid = false;
+      } else {
+        collectedData.crop_type = cropType;
+        console.log('Extracted crop type:', cropType);
+      }
       break;
+
     case 3:
-      collectedData.sowing_date = extractSowingDate(response);
-      console.log('Extracted sowing date:', collectedData.sowing_date);
+      const sowingDate = extractSowingDate(response);
+      if (!sowingDate) {
+        addBotMessage("I couldn’t understand your sowing date. Could you please mention it again?");
+        speakMessage("Please say or type your sowing date again.", currentLanguage.lang);
+        isValid = false;
+      } else {
+        collectedData.sowing_date = sowingDate;
+        console.log('Extracted sowing date:', sowingDate);
+      }
       break;
-    case 4:
-      nextMessage = currentLanguage.processing;
-      addBotMessage(nextMessage);
-      messageInput.disabled = true;
-      micButton.disabled = true;
-
-     console.log('=== Final Collected Data for ML Model ===');
-     console.log(JSON.stringify(collectedData, null, 2));
-
-     // 🟢 Show collected data, then call backend
-     setTimeout(async () => {
-       const formattedJSON = JSON.stringify(collectedData, null, 2);
-       addBotMessage(`<pre>${formattedJSON}</pre>`);
-
-       try {
-         // 🔗 Call your backend (which calls Hugging Face model)
-         const response = await fetch('https://llmbackend-ncgh.onrender.com/api/ask-llm', {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({
-             prompt: `Here is the collected farm data:\n${formattedJSON}\nProvide agricultural insights or recommendations based on this information.`
-           })
-         });
-
-         const result = await response.json();
-
-         // Many Hugging Face APIs return an array with "generated_text"
-         const llmText = Array.isArray(result)
-           ? result[0].generated_text
-           : JSON.stringify(result, null, 2);
-
-         addBotMessage(`<strong>AI Insights:</strong><br>${llmText}`);
-       } catch (err) {
-         console.error('LLM request failed:', err);
-         addBotMessage('❌ Failed to retrieve AI insights from the model.');
-       }
-     }, 1000);
-
-     return;
-
   }
 
+  // ❌ If invalid, don't move forward
+  if (!isValid) return;
+
+  // ✅ If valid, go to the next question
   questionIndex++;
 
   setTimeout(() => {
@@ -273,28 +269,47 @@ function handleUserResponse(response) {
         nextMessage = currentLanguage.q4;
         break;
       case 4:
-          nextMessage = currentLanguage.processing;
-          addBotMessage(nextMessage);
-          messageInput.disabled = true;
-          micButton.disabled = true;
+        nextMessage = currentLanguage.processing;
+        addBotMessage(nextMessage);
+        messageInput.disabled = true;
+        micButton.disabled = true;
 
-          console.log('=== Final Collected Data for ML Model ===');
-          console.log(JSON.stringify(collectedData, null, 2));
+        console.log('=== Final Collected Data for ML Model ===');
+        console.log(JSON.stringify(collectedData, null, 2));
 
-  // 🟢 Show the collected data inside the chat
-          setTimeout(() => {
-            const formattedJSON = JSON.stringify(collectedData, null, 2);
-            addBotMessage(`<pre>${formattedJSON}</pre>`);
-            }, 1000); // wait 1 second for realism
+        // 🧠 Show JSON + call backend LLM
+        setTimeout(async () => {
+          const formattedJSON = JSON.stringify(collectedData, null, 2);
+          addBotMessage(`<pre>${formattedJSON}</pre>`);
 
-  return;
+          try {
+            const response = await fetch('https://llmbackend-ncgh.onrender.com/api/ask-llm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt: `Here is the collected farm data:\n${formattedJSON}\nProvide agricultural insights or recommendations based on this information.`
+              })
+            });
 
+            const result = await response.json();
+            const llmText = Array.isArray(result)
+              ? result[0].generated_text
+              : JSON.stringify(result, null, 2);
+
+            addBotMessage(`<strong>AI Insights:</strong><br>${llmText}`);
+          } catch (err) {
+            console.error('LLM request failed:', err);
+            addBotMessage('❌ Failed to retrieve AI insights from the model.');
+          }
+        }, 1000);
+        return;
     }
 
     addBotMessage(nextMessage);
     speakMessage(nextMessage, currentLanguage.lang);
   }, 500);
 }
+
 
 if ('speechSynthesis' in window) {
   speechSynthesis.getVoices();
