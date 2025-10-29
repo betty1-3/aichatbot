@@ -215,6 +215,46 @@ function handleUserResponse(response) {
       collectedData.sowing_date = extractSowingDate(response);
       console.log('Extracted sowing date:', collectedData.sowing_date);
       break;
+    case 4:
+      nextMessage = currentLanguage.processing;
+      addBotMessage(nextMessage);
+      messageInput.disabled = true;
+      micButton.disabled = true;
+
+     console.log('=== Final Collected Data for ML Model ===');
+     console.log(JSON.stringify(collectedData, null, 2));
+
+     // 🟢 Show collected data, then call backend
+     setTimeout(async () => {
+       const formattedJSON = JSON.stringify(collectedData, null, 2);
+       addBotMessage(`<pre>${formattedJSON}</pre>`);
+
+       try {
+         // 🔗 Call your backend (which calls Hugging Face model)
+         const response = await fetch('https://llmbackend-ncgh.onrender.com/api/ask-llm', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             prompt: `Here is the collected farm data:\n${formattedJSON}\nProvide agricultural insights or recommendations based on this information.`
+           })
+         });
+
+         const result = await response.json();
+
+         // Many Hugging Face APIs return an array with "generated_text"
+         const llmText = Array.isArray(result)
+           ? result[0].generated_text
+           : JSON.stringify(result, null, 2);
+
+         addBotMessage(`<strong>AI Insights:</strong><br>${llmText}`);
+       } catch (err) {
+         console.error('LLM request failed:', err);
+         addBotMessage('❌ Failed to retrieve AI insights from the model.');
+       }
+     }, 1000);
+
+     return;
+
   }
 
   questionIndex++;
