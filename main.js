@@ -1,4 +1,5 @@
 import './style.css'
+import { extractLocationData, extractFarmSize, extractCropType, extractSowingDate } from './dataExtractor.js'
 
 const translations = {
   english: {
@@ -40,6 +41,14 @@ let questionIndex = 0;
 let mediaRecorder = null;
 let audioChunks = [];
 let recognition = null;
+
+const collectedData = {
+  district: null,
+  state: null,
+  farm_size_acres: null,
+  crop_type: null,
+  sowing_date: null
+};
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -187,6 +196,27 @@ function handleUserResponse(response) {
   addUserMessage(response);
   messageInput.value = '';
 
+  switch (questionIndex) {
+    case 0:
+      const locationData = extractLocationData(response);
+      collectedData.district = locationData.district;
+      collectedData.state = locationData.state;
+      console.log('Extracted location:', locationData);
+      break;
+    case 1:
+      collectedData.farm_size_acres = extractFarmSize(response);
+      console.log('Extracted farm size:', collectedData.farm_size_acres);
+      break;
+    case 2:
+      collectedData.crop_type = extractCropType(response);
+      console.log('Extracted crop type:', collectedData.crop_type);
+      break;
+    case 3:
+      collectedData.sowing_date = extractSowingDate(response);
+      console.log('Extracted sowing date:', collectedData.sowing_date);
+      break;
+  }
+
   questionIndex++;
 
   setTimeout(() => {
@@ -207,6 +237,9 @@ function handleUserResponse(response) {
         addBotMessage(nextMessage);
         messageInput.disabled = true;
         micButton.disabled = true;
+
+        console.log('=== Final Collected Data for ML Model ===');
+        console.log(JSON.stringify(collectedData, null, 2));
         return;
       default:
         return;
