@@ -233,16 +233,22 @@ function handleUserResponse(response) {
         nextMessage = currentLanguage.q4;
         break;
       case 4:
-        nextMessage = currentLanguage.processing;
-        addBotMessage(nextMessage);
-        messageInput.disabled = true;
-        micButton.disabled = true;
+          nextMessage = currentLanguage.processing;
+          addBotMessage(nextMessage);
+          messageInput.disabled = true;
+          micButton.disabled = true;
 
-        console.log('=== Final Collected Data for ML Model ===');
-        console.log(JSON.stringify(collectedData, null, 2));
-        return;
-      default:
-        return;
+          console.log('=== Final Collected Data for ML Model ===');
+          console.log(JSON.stringify(collectedData, null, 2));
+
+  // 🟢 Show the collected data inside the chat
+          setTimeout(() => {
+            const formattedJSON = JSON.stringify(collectedData, null, 2);
+            addBotMessage(`<pre>${formattedJSON}</pre>`);
+            }, 1000); // wait 1 second for realism
+
+  return;
+
     }
 
     addBotMessage(nextMessage);
