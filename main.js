@@ -38,8 +38,6 @@ const translations = {
 
 let currentLanguage = null;
 let questionIndex = 0;
-let mediaRecorder = null;
-let audioChunks = [];
 let recognition = null;
 
 const collectedData = {
@@ -66,22 +64,13 @@ app.innerHTML = `
   </div>
 
   <div class="chatbox">
-    <div class="chat-header">
-      Agricultural Data Collection
-    </div>
+    <div class="chat-header">Agricultural Data Collection</div>
     <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-container">
       <div class="input-wrapper">
-        <input
-          type="text"
-          id="messageInput"
-          placeholder="Type your answer..."
-          disabled
-        />
+        <input type="text" id="messageInput" placeholder="Type your answer..." disabled />
       </div>
-      <button class="mic-button" id="micButton" disabled>
-        🎤
-      </button>
+      <button class="mic-button" id="micButton" disabled>🎤</button>
     </div>
   </div>
 `;
@@ -93,55 +82,41 @@ const messageInput = document.getElementById('messageInput');
 const micButton = document.getElementById('micButton');
 
 languageButtons.forEach(button => {
-  button.addEventListener('click', () => {
-    const lang = button.dataset.lang;
-    selectLanguage(lang);
-  });
+  button.addEventListener('click', () => selectLanguage(button.dataset.lang));
 });
 
 function selectLanguage(lang) {
   currentLanguage = translations[lang];
   languageModal.classList.add('hidden');
-
   messageInput.disabled = false;
   micButton.disabled = false;
 
   addBotMessage(currentLanguage.greeting);
   speakMessage(currentLanguage.greeting, currentLanguage.lang);
-
   setupSpeechRecognition();
 }
 
 function addBotMessage(text) {
-  const messageDiv = document.createElement('div');
-  messageDiv.className = 'message bot';
-  messageDiv.innerHTML = `<div class="message-bubble">${text}</div>`;
-  chatMessages.appendChild(messageDiv);
+  const div = document.createElement('div');
+  div.className = 'message bot';
+  div.innerHTML = `<div class="message-bubble">${text}</div>`;
+  chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function addUserMessage(text) {
-  const messageDiv = document.createElement('div');
-  messageDiv.className = 'message user';
-  messageDiv.innerHTML = `<div class="message-bubble">${text}</div>`;
-  chatMessages.appendChild(messageDiv);
+  const div = document.createElement('div');
+  div.className = 'message user';
+  div.innerHTML = `<div class="message-bubble">${text}</div>`;
+  chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function speakMessage(text, lang) {
   if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = 0.9;
-    utterance.pitch = 1;
-
-    const voices = speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang.startsWith(lang.split('-')[0]));
-    if (voice) {
-      utterance.voice = voice;
-    }
-
-    speechSynthesis.speak(utterance);
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = lang;
+    speechSynthesis.speak(utter);
   }
 }
 
@@ -152,25 +127,16 @@ function setupSpeechRecognition() {
     recognition.interimResults = false;
     recognition.lang = currentLanguage.lang;
 
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
       messageInput.value = transcript;
       handleUserResponse(transcript);
-      micButton.classList.remove('recording');
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      micButton.classList.remove('recording');
-    };
-
-    recognition.onend = () => {
       micButton.classList.remove('recording');
     };
   }
 }
 
-messageInput.addEventListener('keypress', (e) => {
+messageInput.addEventListener('keypress', e => {
   if (e.key === 'Enter' && messageInput.value.trim()) {
     handleUserResponse(messageInput.value.trim());
   }
@@ -178,17 +144,12 @@ messageInput.addEventListener('keypress', (e) => {
 
 micButton.addEventListener('click', () => {
   if (!recognition) return;
-
   if (micButton.classList.contains('recording')) {
     recognition.stop();
     micButton.classList.remove('recording');
   } else {
-    try {
-      recognition.start();
-      micButton.classList.add('recording');
-    } catch (error) {
-      console.error('Speech recognition start error:', error);
-    }
+    recognition.start();
+    micButton.classList.add('recording');
   }
 });
 
@@ -196,120 +157,104 @@ async function handleUserResponse(response) {
   addUserMessage(response);
   messageInput.value = '';
 
-  let isValid = true; // 🧠 assume valid unless proven otherwise
+  let valid = true;
 
   switch (questionIndex) {
     case 0:
-      const locationData = extractLocationData(response);
-      if (!locationData.district || !locationData.state) {
-        addBotMessage("I couldn’t catch your district and state. Could you please mention both clearly?");
-        speakMessage("Please say or type your district and state again.", currentLanguage.lang);
-        isValid = false;
+      const loc = extractLocationData(response);
+      if (!loc.district || !loc.state) {
+        addBotMessage("Please mention both district and state clearly.");
+        speakMessage("Please say your district and state again.", currentLanguage.lang);
+        valid = false;
       } else {
-        collectedData.district = locationData.district;
-        collectedData.state = locationData.state;
-        console.log('Extracted location:', locationData);
+        collectedData.district = loc.district;
+        collectedData.state = loc.state;
       }
       break;
 
     case 1:
-      const farmSize = extractFarmSize(response);
-      if (!farmSize || isNaN(farmSize) || farmSize <= 0) {
-        addBotMessage("Hmm, that doesn’t seem like a valid number of acres. Could you please repeat it?");
-        speakMessage("Please say or type your farm size in acres again.", currentLanguage.lang);
-        isValid = false;
-      } else {
-        collectedData.farm_size_acres = farmSize;
-        console.log('Extracted farm size:', farmSize);
-      }
+      const size = extractFarmSize(response);
+      if (!size || isNaN(size) || size <= 0) {
+        addBotMessage("That doesn't seem valid. Please enter your farm size again.");
+        speakMessage("Please say your farm size again.", currentLanguage.lang);
+        valid = false;
+      } else collectedData.farm_size_acres = size;
       break;
 
     case 2:
-      const cropType = extractCropType(response);
-      if (!cropType || cropType.length < 2) {
-        addBotMessage("I didn’t recognize that crop type. Could you please name your crop again?");
-        speakMessage("Please say your crop type again.", currentLanguage.lang);
-        isValid = false;
-      } else {
-        collectedData.crop_type = cropType;
-        console.log('Extracted crop type:', cropType);
-      }
+      const crop = extractCropType(response);
+      if (!crop) {
+        addBotMessage("Please mention a valid crop name.");
+        speakMessage("Please say your crop name again.", currentLanguage.lang);
+        valid = false;
+      } else collectedData.crop_type = crop;
       break;
 
     case 3:
-      const sowingDate = extractSowingDate(response);
-      if (!sowingDate) {
-        addBotMessage("I couldn’t understand your sowing date. Could you please mention it again?");
-        speakMessage("Please say or type your sowing date again.", currentLanguage.lang);
-        isValid = false;
-      } else {
-        collectedData.sowing_date = sowingDate;
-        console.log('Extracted sowing date:', sowingDate);
-      }
+      const date = extractSowingDate(response);
+      if (!date) {
+        addBotMessage("Could not catch your sowing date. Please repeat.");
+        speakMessage("Please say your sowing date again.", currentLanguage.lang);
+        valid = false;
+      } else collectedData.sowing_date = date;
       break;
   }
 
-  // ❌ If invalid, don't move forward
-  if (!isValid) return;
+  if (!valid) return;
 
-  // ✅ If valid, go to the next question
   questionIndex++;
 
-  setTimeout(() => {
-    let nextMessage = '';
+  setTimeout(async () => {
+    let next = '';
 
     switch (questionIndex) {
       case 1:
-        nextMessage = currentLanguage.q2;
+        next = currentLanguage.q2;
         break;
       case 2:
-        nextMessage = currentLanguage.q3;
+        next = currentLanguage.q3;
         break;
       case 3:
-        nextMessage = currentLanguage.q4;
+        next = currentLanguage.q4;
         break;
       case 4:
-        nextMessage = currentLanguage.processing;
-        addBotMessage(nextMessage);
+        next = currentLanguage.processing;
+        addBotMessage(next);
         messageInput.disabled = true;
         micButton.disabled = true;
 
-        console.log('=== Final Collected Data for ML Model ===');
-        console.log(JSON.stringify(collectedData, null, 2));
+        console.log('Final collected data:', collectedData);
 
-        // 🧠 Show JSON + call backend LLM
-        setTimeout(async () => {
-          const formattedJSON = JSON.stringify(collectedData, null, 2);
-          addBotMessage(`<pre>${formattedJSON}</pre>`);
+        try {
+          // ✅ Send data to ML model backend
+          await fetch('https://agri-ai-web-app.onrender.com/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(collectedData)
+          });
 
-          try {
-            const response = await fetch('https://llmbackend-ncgh.onrender.com/api/ask-llm', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                prompt: `Here is the collected farm data:\n${formattedJSON}\nProvide agricultural insights or recommendations based on this information.`
-              })
-            });
+          // ✅ Redirect with pre-filled parameters
+          const query = new URLSearchParams(collectedData).toString();
+          const redirectUrl = `https://agri-ai-web-app.onrender.com/?${query}`;
 
-            const result = await response.json();
-            const llmText = Array.isArray(result)
-              ? result[0].generated_text
-              : JSON.stringify(result, null, 2);
+          addBotMessage("Redirecting to the ML model insights page...");
+          speakMessage("Redirecting you to the insights page.", currentLanguage.lang);
 
-            addBotMessage(`<strong>AI Insights:</strong><br>${llmText}`);
-          } catch (err) {
-            console.error('LLM request failed:', err);
-            addBotMessage('❌ Failed to retrieve AI insights from the model.');
-          }
-        }, 1000);
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 2000);
+
+        } catch (err) {
+          console.error('ML request failed:', err);
+          addBotMessage("❌ Failed to connect to the ML model.");
+        }
         return;
     }
 
-    addBotMessage(nextMessage);
-    speakMessage(nextMessage, currentLanguage.lang);
+    addBotMessage(next);
+    speakMessage(next, currentLanguage.lang);
   }, 500);
 }
-
 
 if ('speechSynthesis' in window) {
   speechSynthesis.getVoices();
